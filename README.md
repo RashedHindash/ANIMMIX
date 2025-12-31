@@ -18,8 +18,27 @@ Tool Description and Current Limitations:
 
   The tool is currently a work in progress and continues to evolve through iterative testing and refinement.
   At its current stage, the tool supports standard bone-based and custom rig setups. CAT and Biped rigs are not supported at this time, as they rely on internal animation systems that require specialized handling. Support for CAT and Biped rigs is planned for a future release once the core feature set has been finalized and stabilized.
+  
+ ---
 
-Setup Check and Snapshot Workflow:
+<h3 align="center">How To Install</h3>
+
+1- Download the basic file.
+
+2- Unzip the file and place it in a location that 3ds Max can access.
+
+3- Open 3ds Max.
+
+4- Go to Scripting → Open Script.
+
+5- Navigate to the folder containing the script and select it.
+
+Important: Make sure the image file is in the same folder as the script; otherwise, the image will not load.
+
+ ---
+
+<h3 align="center">Setup</h3>
+
 
   1- The tool relies on controller naming conventions to correctly identify left and right sides of a character.
 
@@ -28,7 +47,9 @@ Setup Check and Snapshot Workflow:
   This naming requirement is validated during the Setup Check, which ensures that the rig follows the expected structure before using pose-based tools.
 
 
-Creating and Saving a Snapshot (Pose State):
+ ---
+
+<h3 align="center">Workflow</h3>
 
   1- Select all relevant animation controllers for the character.
   
