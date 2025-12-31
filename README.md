@@ -23,13 +23,13 @@ Tool Description and Current Limitations:
 
 <h3 align="center">How To Install</h3>
 
-1- Download the basic file.
+1- Download the Zip file.
 
-2- Unzip the file and place it in a location that 3ds Max can access.
+2- Unzip the file and place it in a location of your choice.
 
 3- Open 3ds Max.
 
-4- Go to Scripting → Open Script.
+4- Go to Scripting → Run Script.
 
 5- Navigate to the folder containing the script and select it.
 
