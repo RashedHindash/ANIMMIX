@@ -1,8 +1,16 @@
-# ANIMMIX
-![image alt](https://github.com/RashedHindash/ANIMMIX/blob/main/ANIMMIX%20Logo.png)
+<h1 align="center">ANIMMIX</h1>
+<h3 align="center">Animate Your Way</h3>
+
+---
+
+<p align="center">
+<img alt="Logo Banner" src="https://github.com/RashedHindash/ANIMMIX/blob/main/ANIMMIX%20Logo.png"/>
 Modern animation workflow toolkit for 3ds Max 2026+. Professional-grade tools for character animation with full support for complex rigs. Inspired by Maya's animation ecosystem. AI-assisted
 
-![image alt](https://github.com/RashedHindash/ANIMMIX/blob/main/Screenshot%202025-12-31%20161519.png)
+---
+
+<p align="center">
+<img alt="Tool" src="https://github.com/RashedHindash/ANIMMIX/blob/main/Screenshot%202025-12-31%20161519.png"/>
 
 ---
 
