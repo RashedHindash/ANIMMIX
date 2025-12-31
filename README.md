@@ -4,6 +4,8 @@ Modern animation workflow toolkit for 3ds Max 2026+. Professional-grade tools fo
 
 ![image alt](https://github.com/RashedHindash/ANIMMIX/blob/main/Screenshot%202025-12-31%20161519.png)
 
+---
+
 Tool Description and Current Limitations:
 
   The tool is currently a work in progress and continues to evolve through iterative testing and refinement.
