@@ -24,10 +24,9 @@ _cache = {'valid': False, 'ct': 0, 'items': [], 'ca_items': [], 'obj_items': {}}
 
 def clear_cache():
     global _cache
-    _cache['valid'] = False
-    _cache['items'] = []
-    _cache['ca_items'] = []
-    _cache['obj_items'] = {}
+    _cache = {'valid': False, 'ct': 0, 'items': [], 'ca_items': [], 'obj_items': {}}
+    import gc
+    gc.collect()
 
 def has_key_at_time(ctrl, time):
     try:
@@ -844,6 +843,8 @@ def clear_offset_cache():
     
     if not _offset_cache['valid']:
         _offset_cache = {'valid': False, 'controllers': [], 'hierarchy_order': []}
+        import gc
+        gc.collect()
         return
     
     for ctrl_data in _offset_cache['controllers']:
@@ -919,6 +920,8 @@ def clear_offset_cache():
     
     rt.redrawViews()
     _offset_cache = {'valid': False, 'controllers': [], 'hierarchy_order': []}
+    import gc
+    gc.collect()
 
 def _get_hierarchy_depth(obj):
     """Get the depth of an object in the hierarchy (0 = root)."""
@@ -1168,27 +1171,37 @@ _pushpull_cache = {'valid': False, 'controllers': []}
 def clear_pushpull_cache():
     global _pushpull_cache
     _pushpull_cache = {'valid': False, 'controllers': []}
+    import gc
+    gc.collect()
 
 _favor_cache = {'valid': False, 'controllers': []}
-_simplify_cache = {'valid': False, 'controllers': []}
+_simplify_cache = {'valid': False, 'controllers': [], 'last_amount': 0}
 _smooth_cache = {'valid': False, 'controllers': []}
 _noise_cache = {'valid': False, 'controllers': [], 'seed': 0}
 
 def clear_favor_cache():
     global _favor_cache
     _favor_cache = {'valid': False, 'controllers': []}
+    import gc
+    gc.collect()
 
 def clear_simplify_cache():
     global _simplify_cache
-    _simplify_cache = {'valid': False, 'controllers': []}
+    _simplify_cache = {'valid': False, 'controllers': [], 'last_amount': 0}
+    import gc
+    gc.collect()
 
 def clear_smooth_cache():
     global _smooth_cache
     _smooth_cache = {'valid': False, 'controllers': []}
+    import gc
+    gc.collect()
 
 def clear_noise_cache():
     global _noise_cache
     _noise_cache = {'valid': False, 'controllers': [], 'seed': 0}
+    import gc
+    gc.collect()
 
 def build_pushpull_cache():
     """Cache selected keys for push/pull."""
@@ -3050,6 +3063,8 @@ class SnapshotManager:
     def clear_all_snapshots():
         SnapshotManager._snapshots = {}
         SnapshotManager._active_snapshot = None
+        import gc
+        gc.collect()
     
     @staticmethod
     def _find_controller_snapshot(obj):
@@ -3630,6 +3645,8 @@ class MotionTrailSystem:
         cls._data = None
         cls._cache = None
         cls._last_time = None
+        import gc
+        gc.collect()
         rt.redrawViews()
         print("Motion Trail removed")
     
@@ -7864,216 +7881,808 @@ class TangentTools:
 # ============================================================================
 # MODERN UI IMPLEMENTATION
 # ============================================================================
+# ============================================================================
+# MODERN ADAPTIVE UI IMPLEMENTATION
+# ============================================================================
+
+class CollapsibleSection(QtWidgets.QWidget):
+    """A collapsible section widget with header and content."""
+    
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.is_collapsed = False
+        self.title = title
+        
+        self.main_layout = QtWidgets.QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # Header button
+        self.header = QtWidgets.QPushButton(f"? {title}")
+        self.header.setStyleSheet("""
+            QPushButton {
+                background-color: #3A3A3A;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 10px;
+                text-align: left;
+                color: #AAA;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #454545;
+                color: #FFF;
+            }
+        """)
+        self.header.clicked.connect(self.toggle_collapsed)
+        self.main_layout.addWidget(self.header)
+        
+        # Content widget
+        self.content = QtWidgets.QWidget()
+        self.content_layout = QtWidgets.QVBoxLayout(self.content)
+        self.content_layout.setContentsMargins(0, 4, 0, 4)
+        self.content_layout.setSpacing(4)
+        self.main_layout.addWidget(self.content)
+    
+    def toggle_collapsed(self):
+        self.is_collapsed = not self.is_collapsed
+        self.content.setVisible(not self.is_collapsed)
+        arrow = "?" if self.is_collapsed else "?"
+        self.header.setText(f"{arrow} {self.title}")
+    
+    def set_collapsed(self, collapsed):
+        self.is_collapsed = collapsed
+        self.content.setVisible(not collapsed)
+        arrow = "?" if collapsed else "?"
+        self.header.setText(f"{arrow} {self.title}")
+    
+    def add_widget(self, widget):
+        self.content_layout.addWidget(widget)
+    
+    def add_layout(self, layout):
+        self.content_layout.addLayout(layout)
+
 
 class AnimmixSlider(QtWidgets.QSlider):
     def __init__(self, parent=None):
         super().__init__(QtCore.Qt.Horizontal, parent)
-        self.setRange(-100, 100); self.setValue(0)
-        self.active_color = QtGui.QColor("#32CD32"); self.is_active = False
+        self.setRange(-100, 100)
+        self.setValue(0)
+        self.active_color = QtGui.QColor("#32CD32")
+        self.is_active = False
 
-    def set_color(self, color_str): self.active_color = QtGui.QColor(color_str); self.update()
+    def set_color(self, color_str):
+        self.active_color = QtGui.QColor(color_str)
+        self.update()
 
     def paintEvent(self, event):
-        painter = QtGui.QPainter(self); painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        rect = self.rect(); center_y = rect.height() / 2
-        margin = 16 
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        rect = self.rect()
+        center_y = rect.height() / 2
+        margin = 16
         usable_width = rect.width() - (margin * 2)
-        track_height = 16 if self.is_active else 6; track_radius = track_height / 2
-        val = self.value(); range_len = self.maximum() - self.minimum()
+        track_height = 16 if self.is_active else 6
+        track_radius = track_height / 2
+        val = self.value()
+        range_len = self.maximum() - self.minimum()
         norm = (val - self.minimum()) / range_len
-        handle_x = margin + (norm * usable_width); center_x = rect.width() / 2
-        painter.setPen(QtCore.Qt.NoPen); painter.setBrush(QtGui.QColor("#1A1A1A"))
+        handle_x = margin + (norm * usable_width)
+        center_x = rect.width() / 2
+        
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(QtGui.QColor("#1A1A1A"))
         painter.drawRoundedRect(margin, int(center_y - track_radius), int(usable_width), int(track_height), track_radius, track_radius)
+        
         painter.setBrush(self.active_color)
         if val != 0:
-            if val > 0: w = handle_x - center_x; r = QtCore.QRectF(center_x, center_y - track_radius, w, track_height)
-            else: w = center_x - handle_x; r = QtCore.QRectF(handle_x, center_y - track_radius, w, track_height)
+            if val > 0:
+                w = handle_x - center_x
+                r = QtCore.QRectF(center_x, center_y - track_radius, w, track_height)
+            else:
+                w = center_x - handle_x
+                r = QtCore.QRectF(handle_x, center_y - track_radius, w, track_height)
             painter.drawRoundedRect(r, track_radius, track_radius)
+        
         painter.setBrush(QtGui.QColor("#444"))
         for tick_val in [-100, -75, -50, -25, 0, 25, 50, 75, 100]:
             tick_norm = (tick_val - self.minimum()) / range_len
             tick_x = margin + (tick_norm * usable_width)
             radius = 1.0 if abs(tick_val) in [25, 50, 75] else 1.5
             painter.drawEllipse(QtCore.QPointF(tick_x, center_y), radius, radius)
+        
         handle_radius = 8 if self.is_active else 6
-        painter.setBrush(self.active_color); painter.setPen(QtGui.QPen(QtGui.QColor("#111"), 2))
+        painter.setBrush(self.active_color)
+        painter.setPen(QtGui.QPen(QtGui.QColor("#111"), 2))
         painter.drawEllipse(QtCore.QPointF(handle_x, center_y), handle_radius, handle_radius)
+        
         if val != 0:
-            text_str = f"{val}%"; font = QtGui.QFont("Segoe UI", 9, QtGui.QFont.Bold)
-            painter.setFont(font); painter.setPen(QtGui.QColor("white"))
-            txt_pad = 10; left_bound = margin + txt_pad; right_bound = rect.width() - margin - txt_pad
-            if val > 0: t_rect = QtCore.QRectF(left_bound, 0, 100, rect.height()); painter.drawText(t_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text_str)
-            else: t_rect = QtCore.QRectF(right_bound - 100, 0, 100, rect.height()); painter.drawText(t_rect, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, text_str)
+            text_str = f"{val}%"
+            font = QtGui.QFont("Segoe UI", 9, QtGui.QFont.Bold)
+            painter.setFont(font)
+            painter.setPen(QtGui.QColor("white"))
+            txt_pad = 10
+            left_bound = margin + txt_pad
+            right_bound = rect.width() - margin - txt_pad
+            if val > 0:
+                t_rect = QtCore.QRectF(left_bound, 0, 100, rect.height())
+                painter.drawText(t_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text_str)
+            else:
+                t_rect = QtCore.QRectF(right_bound - 100, 0, 100, rect.height())
+                painter.drawText(t_rect, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, text_str)
+        
         painter.end()
-    
-    def mousePressEvent(self, e): self.is_active=True; self.update(); super().mousePressEvent(e)
-    def mouseReleaseEvent(self, e): self.is_active=False; self.update(); super().mouseReleaseEvent(e)
+
+    def mousePressEvent(self, e):
+        self.is_active = True
+        self.update()
+        super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        self.is_active = False
+        self.update()
+        super().mouseReleaseEvent(e)
+
 
 class RecoveryHistoryDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super(RecoveryHistoryDialog, self).__init__(parent)
-        self.setWindowTitle("History"); self.setFixedWidth(200); self.setWindowFlags(QtCore.Qt.Popup)
+        self.setWindowTitle("History")
+        self.setFixedWidth(200)
+        self.setWindowFlags(QtCore.Qt.Popup)
         self.setStyleSheet("QDialog { background: #333; border: 1px solid #555; } QLabel { color: #888; }")
-        layout = QtWidgets.QVBoxLayout(self); layout.setContentsMargins(5, 5, 5, 5); layout.setSpacing(2)
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(2)
+        
         files = AnimRecoveryTools.get_recent_snapshots(15)
-        if not files: layout.addWidget(QtWidgets.QLabel("No snapshots found"))
+        if not files:
+            layout.addWidget(QtWidgets.QLabel("No snapshots found"))
         else:
             for f in files:
-                f_norm = f.replace("\\", "/") 
+                f_norm = f.replace("\\", "/")
                 ts_str = os.path.basename(f).replace("recovery_", "").replace(".max", "")
                 display_str = ts_str.replace("_", " ")
                 btn = QtWidgets.QPushButton(display_str)
-                btn.setStyleSheet("QPushButton { text-align: left; padding: 6px; background: #444; border: none; color: #EEE; border-radius: 3px; } QPushButton:hover { background: #555; }")
+                btn.setStyleSheet("""
+                    QPushButton { 
+                        text-align: left; 
+                        padding: 6px; 
+                        background: #444; 
+                        border: none; 
+                        color: #EEE; 
+                        border-radius: 3px; 
+                    } 
+                    QPushButton:hover { 
+                        background: #555; 
+                    }
+                """)
                 btn.clicked.connect(lambda ch=False, path=f_norm: self.do_restore(path))
                 layout.addWidget(btn)
 
     def do_restore(self, path):
-        res = AnimRecoveryTools.restore_snapshot(path); print(f"[Animmix] Restore result: {res}"); self.close()
+        res = AnimRecoveryTools.restore_snapshot(path)
+        print(f"[Animmix] Restore result: {res}")
+        self.close()
+
 
 class AnimmixDockWidget(QtWidgets.QDockWidget):
+    """Adaptive dockable Animmix panel with horizontal/vertical layouts."""
+    
+    # Layout modes
+    LAYOUT_VERTICAL = 0    # Normal vertical stack (floating or side-docked)
+    LAYOUT_HORIZONTAL = 1  # Horizontal row (top/bottom docked)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(""); self.setObjectName("AnimmixDockWidget"); self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-        self.main_widget = QtWidgets.QWidget(); self.setWidget(self.main_widget)
-        self.layout = QtWidgets.QVBoxLayout(self.main_widget); self.layout.setContentsMargins(6,6,6,6); self.layout.setSpacing(8)
-        self.setStyleSheet("""
-            QWidget { background-color: #2B2B2B; color: #EEE; font-family: 'Segoe UI'; font-size: 11px; }
-            QGroupBox { background-color: #323232; border: 1px solid #3A3A3A; border-radius: 6px; margin-top: 12px; padding-top: 12px; }
-            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; color: #AAA; font-weight: bold; background-color: #2B2B2B; }
-            QPushButton, QToolButton { background-color: #404040; border: 1px solid #202020; border-radius: 4px; padding: 5px; color: #DDD; min-height: 18px; }
-            QPushButton:hover, QToolButton:hover { background-color: #505050; border-color: #606060; color: #FFF; }
-            QPushButton:pressed, QToolButton:pressed { background-color: #222; }
-            QToolButton { padding-right: 15px; }
-            QToolButton::menu-button { border-left: 1px solid #202020; width: 10px; background-color: rgba(0,0,0,0.2); border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
-            QToolButton::menu-button:hover { background-color: rgba(0,0,0,0.4); }
-            QToolButton::menu-arrow { image: none; }
-            QSpinBox { background: #202020; border: 1px solid #444; border-radius: 4px; padding: 4px; color: #FFF; selection-background-color: #555; }
-        """)
-        self.mode = 1; self.overshoot = False; self.recovery_active = True
+        self.setWindowTitle("Animmix Pro")
+        self.setObjectName("AnimmixDockWidget")
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.setMinimumSize(200, 100)
+        
+        # Allow docking everywhere
+        self.setAllowedAreas(
+            QtCore.Qt.LeftDockWidgetArea | 
+            QtCore.Qt.RightDockWidgetArea | 
+            QtCore.Qt.TopDockWidgetArea | 
+            QtCore.Qt.BottomDockWidgetArea
+        )
+        
+        # State
+        self.mode = 1
+        self.overshoot = False
+        self.recovery_active = True
+        self.current_layout_mode = self.LAYOUT_VERTICAL
+        
+        # Main container
+        self.main_widget = QtWidgets.QWidget()
+        self.setWidget(self.main_widget)
+        
+        # Apply base stylesheet
+        self.setStyleSheet(self._get_base_stylesheet())
+        
+        # Build UI
         self.setup_ui()
-        self.recovery_timer = QtCore.QTimer(self); self.recovery_timer.setInterval(60000); self.recovery_timer.timeout.connect(self.auto_save); self.recovery_timer.start()
+        
+        # Connect dock location changed signal
+        self.dockLocationChanged.connect(self.on_dock_location_changed)
+        self.topLevelChanged.connect(self.on_top_level_changed)
+        
+        # Recovery timer
+        self.recovery_timer = QtCore.QTimer(self)
+        self.recovery_timer.setInterval(60000)
+        self.recovery_timer.timeout.connect(self.auto_save)
+        self.recovery_timer.start()
         self.auto_save()
-
+    
+    def _get_base_stylesheet(self):
+        return """
+            QDockWidget {
+                font-family: 'Segoe UI';
+                font-size: 11px;
+            }
+            QDockWidget::title {
+                background-color: #2B2B2B;
+                padding: 6px;
+                color: #EEE;
+            }
+            QWidget {
+                background-color: #2B2B2B;
+                color: #EEE;
+                font-family: 'Segoe UI';
+                font-size: 11px;
+            }
+            QGroupBox {
+                background-color: #323232;
+                border: 1px solid #3A3A3A;
+                border-radius: 6px;
+                margin-top: 12px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+                color: #AAA;
+                font-weight: bold;
+                background-color: #2B2B2B;
+            }
+            QPushButton, QToolButton {
+                background-color: #404040;
+                border: 1px solid #202020;
+                border-radius: 4px;
+                padding: 5px;
+                color: #DDD;
+                min-height: 18px;
+            }
+            QPushButton:hover, QToolButton:hover {
+                background-color: #505050;
+                border-color: #606060;
+                color: #FFF;
+            }
+            QPushButton:pressed, QToolButton:pressed {
+                background-color: #222;
+            }
+            QToolButton {
+                padding-right: 15px;
+            }
+            QToolButton::menu-button {
+                border-left: 1px solid #202020;
+                width: 10px;
+                background-color: rgba(0,0,0,0.2);
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+            }
+            QToolButton::menu-button:hover {
+                background-color: rgba(0,0,0,0.4);
+            }
+            QToolButton::menu-arrow {
+                image: none;
+            }
+            QSpinBox {
+                background: #202020;
+                border: 1px solid #444;
+                border-radius: 4px;
+                padding: 4px;
+                color: #FFF;
+                selection-background-color: #555;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #2B2B2B;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555;
+                border-radius: 5px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #666;
+            }
+            QScrollBar:horizontal {
+                background-color: #2B2B2B;
+                height: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #555;
+                border-radius: 5px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #666;
+            }
+        """
+    
     def setup_ui(self):
-        # --- LOGO START ---
+        """Build the initial UI layout."""
+        self.main_layout = QtWidgets.QVBoxLayout(self.main_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # Create scroll area for content
+        self.scroll_area = QtWidgets.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        
+        # Content widget inside scroll area
+        self.content_widget = QtWidgets.QWidget()
+        self.scroll_area.setWidget(self.content_widget)
+        self.main_layout.addWidget(self.scroll_area)
+        
+        # Build vertical layout by default
+        self.build_vertical_layout()
+    
+    def clear_layout(self, layout):
+        """Recursively clear a layout."""
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            else:
+                sub_layout = item.layout()
+                if sub_layout is not None:
+                    self.clear_layout(sub_layout)
+    
+    def on_dock_location_changed(self, area):
+        """Handle dock location change."""
+        if area in [QtCore.Qt.TopDockWidgetArea, QtCore.Qt.BottomDockWidgetArea]:
+            if self.current_layout_mode != self.LAYOUT_HORIZONTAL:
+                self.switch_to_horizontal_layout()
+        else:
+            if self.current_layout_mode != self.LAYOUT_VERTICAL:
+                self.switch_to_vertical_layout()
+    
+    def on_top_level_changed(self, floating):
+        """Handle floating state change."""
+        if floating:
+            # When floating, use vertical layout
+            if self.current_layout_mode != self.LAYOUT_VERTICAL:
+                self.switch_to_vertical_layout()
+    
+    def switch_to_vertical_layout(self):
+        """Switch to vertical stacked layout."""
+        self.current_layout_mode = self.LAYOUT_VERTICAL
+        self.clear_layout(self.content_widget.layout())
+        if self.content_widget.layout():
+            QtWidgets.QWidget().setLayout(self.content_widget.layout())
+        self.build_vertical_layout()
+    
+    def switch_to_horizontal_layout(self):
+        """Switch to horizontal row layout with drawers."""
+        self.current_layout_mode = self.LAYOUT_HORIZONTAL
+        self.clear_layout(self.content_widget.layout())
+        if self.content_widget.layout():
+            QtWidgets.QWidget().setLayout(self.content_widget.layout())
+        self.build_horizontal_layout()
+    
+    def build_vertical_layout(self):
+        """Build the standard vertical layout."""
+        layout = QtWidgets.QVBoxLayout(self.content_widget)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
+        
+        # Logo
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ANIMMIX Logo.png")
         logo_lbl = QtWidgets.QLabel()
         logo_lbl.setAlignment(QtCore.Qt.AlignCenter)
-        
         if os.path.exists(logo_path):
-            # Scale image to fit (90px wide)
             logo_lbl.setPixmap(QtGui.QPixmap(logo_path).scaledToWidth(90, QtCore.Qt.SmoothTransformation))
         else:
-            # Fallback text
             logo_lbl.setText("ANIMMIX PRO")
             logo_lbl.setStyleSheet("font-weight:bold; font-size:16px; color:#EEE; padding: 10px 0;")
-            
-        self.layout.addWidget(logo_lbl)
-        # --- LOGO END ---
-
-        # 1. MODES
-        mode_layout = QtWidgets.QHBoxLayout(); mode_layout.setSpacing(4)
-        self.btn_tween = QtWidgets.QToolButton(); self.btn_tween.setText("Tween"); self.btn_tween.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
-        self.btn_tween.clicked.connect(lambda: self.set_mode(1))
-        tm = QtWidgets.QMenu(self.btn_tween); tm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        tm.addAction("Tween").triggered.connect(lambda: self.set_mode(1)); tm.addAction("Space").triggered.connect(lambda: self.set_mode(2)); tm.addAction("Offset").triggered.connect(lambda: self.set_mode(3))
-        self.btn_tween.setMenu(tm); self.btn_tween.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-
-        self.btn_ease = QtWidgets.QToolButton(); self.btn_ease.setText("Blend"); self.btn_ease.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
-        self.btn_ease.clicked.connect(lambda: self.set_mode(4))
-        em = QtWidgets.QMenu(self.btn_ease); em.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        em.addAction("Blend").triggered.connect(lambda: self.set_mode(4)); em.addAction("Simplify").triggered.connect(lambda: self.set_mode(7))
-        self.btn_ease.setMenu(em); self.btn_ease.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        layout.addWidget(logo_lbl)
         
-        self.btn_favor = QtWidgets.QToolButton(); self.btn_favor.setText("Favor"); self.btn_favor.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
-        self.btn_favor.clicked.connect(lambda: self.set_mode(8)); self.btn_favor.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        fm = QtWidgets.QMenu(self.btn_favor); fm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        fm.addAction("Default").triggered.connect(lambda: self.set_mode(5)); fm.addAction("Smooth").triggered.connect(lambda: self.set_mode(9)); fm.addAction("Noise").triggered.connect(lambda: self.set_mode(10))
-        self.btn_favor.setMenu(fm)
-        mode_layout.addWidget(self.btn_tween); mode_layout.addWidget(self.btn_ease); mode_layout.addWidget(self.btn_favor)
-        self.layout.addLayout(mode_layout)
-
-        # 2. SLIDER
-        slider_group = QtWidgets.QGroupBox("INTENSITY"); v_sl = QtWidgets.QVBoxLayout(slider_group); v_sl.setSpacing(2); v_sl.setContentsMargins(0, 20, 0, 5)
-        self.anchor_widget = QtWidgets.QWidget(); self.anchor_layout = QtWidgets.QHBoxLayout(self.anchor_widget); self.anchor_layout.setContentsMargins(13,0,13,0); self.anchor_layout.setSpacing(0)
+        # Mode buttons
+        mode_section = CollapsibleSection("MODES")
+        mode_layout = QtWidgets.QHBoxLayout()
+        mode_layout.setSpacing(4)
+        
+        self.btn_tween = self._create_mode_button("Tween", 1, [
+            ("Tween", 1), ("Space", 2), ("Offset", 3)
+        ])
+        self.btn_ease = self._create_mode_button("Blend", 4, [
+            ("Blend", 4), ("Simplify", 7)
+        ])
+        self.btn_favor = self._create_mode_button("Favor", 8, [
+            ("Favor", 8), ("Default", 5), ("Smooth", 9), ("Noise", 10)
+        ])
+        
+        mode_layout.addWidget(self.btn_tween)
+        mode_layout.addWidget(self.btn_ease)
+        mode_layout.addWidget(self.btn_favor)
+        mode_section.add_layout(mode_layout)
+        layout.addWidget(mode_section)
+        
+        # Slider section
+        slider_section = CollapsibleSection("INTENSITY")
+        self._build_slider_widget(slider_section)
+        layout.addWidget(slider_section)
+        
+        # Tangents section
+        tangent_section = CollapsibleSection("TANGENTS")
+        self._build_tangent_widget(tangent_section)
+        layout.addWidget(tangent_section)
+        
+        # Pose section
+        pose_section = CollapsibleSection("POSE")
+        self._build_pose_widget(pose_section)
+        layout.addWidget(pose_section)
+        
+        # Utilities section
+        util_section = CollapsibleSection("UTILITIES")
+        self._build_utilities_widget(util_section)
+        layout.addWidget(util_section)
+        
+        # Keys section
+        keys_section = CollapsibleSection("KEYS")
+        self._build_keys_widget(keys_section)
+        layout.addWidget(keys_section)
+        
+        # Recovery footer
+        layout.addStretch()
+        self._build_recovery_widget(layout)
+        
+        # Set initial mode
+        self.set_mode(1)
+    
+    def build_horizontal_layout(self):
+        """Build horizontal row layout with dropdown drawers."""
+        layout = QtWidgets.QHBoxLayout(self.content_widget)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(6)
+        
+        # Compact logo
+        logo_lbl = QtWidgets.QLabel("AMX")
+        logo_lbl.setStyleSheet("font-weight:bold; font-size:12px; color:#888; padding: 0 5px;")
+        layout.addWidget(logo_lbl)
+        
+        # Separator
+        sep1 = QtWidgets.QFrame()
+        sep1.setFrameShape(QtWidgets.QFrame.VLine)
+        sep1.setStyleSheet("background-color: #444;")
+        layout.addWidget(sep1)
+        
+        # Mode buttons (compact)
+        self.btn_tween = self._create_mode_button("Twn", 1, [
+            ("Tween", 1), ("Space", 2), ("Offset", 3)
+        ])
+        self.btn_ease = self._create_mode_button("Bld", 4, [
+            ("Blend", 4), ("Simplify", 7)
+        ])
+        self.btn_favor = self._create_mode_button("Fav", 8, [
+            ("Favor", 8), ("Default", 5), ("Smooth", 9), ("Noise", 10)
+        ])
+        
+        self.btn_tween.setFixedWidth(50)
+        self.btn_ease.setFixedWidth(50)
+        self.btn_favor.setFixedWidth(50)
+        
+        layout.addWidget(self.btn_tween)
+        layout.addWidget(self.btn_ease)
+        layout.addWidget(self.btn_favor)
+        
+        # Slider (horizontal, compact)
+        self.slider = AnimmixSlider()
+        self.slider.setFixedHeight(24)
+        self.slider.setMinimumWidth(150)
+        self.slider.sliderPressed.connect(self.sl_press)
+        self.slider.sliderReleased.connect(self.sl_release)
+        self.slider.valueChanged.connect(self.sl_change)
+        layout.addWidget(self.slider, 1)  # Stretch
+        
+        # Overshoot toggle (compact)
+        self.btn_overshoot = QtWidgets.QPushButton("OS")
+        self.btn_overshoot.setFixedWidth(30)
+        self.btn_overshoot.setToolTip("Overshoot: OFF")
+        self.btn_overshoot.setStyleSheet("font-size: 9px; padding: 2px;")
+        self.btn_overshoot.clicked.connect(self.toggle_overshoot)
+        layout.addWidget(self.btn_overshoot)
+        
+        # Separator
+        sep2 = QtWidgets.QFrame()
+        sep2.setFrameShape(QtWidgets.QFrame.VLine)
+        sep2.setStyleSheet("background-color: #444;")
+        layout.addWidget(sep2)
+        
+        # Tangent drawer button
+        btn_tangent = self._create_drawer_button("Tang", self._create_tangent_menu())
+        layout.addWidget(btn_tangent)
+        
+        # Pose drawer button
+        btn_pose = self._create_drawer_button("Pose", self._create_pose_menu())
+        layout.addWidget(btn_pose)
+        
+        # Utilities drawer button
+        btn_util = self._create_drawer_button("Util", self._create_utilities_menu())
+        layout.addWidget(btn_util)
+        
+        # Keys drawer button
+        btn_keys = self._create_drawer_button("Keys", self._create_keys_menu())
+        layout.addWidget(btn_keys)
+        
+        # Recovery indicator (compact)
+        self.btn_rec_toggle = QtWidgets.QPushButton()
+        self.btn_rec_toggle.setFixedSize(12, 12)
+        self.btn_rec_toggle.clicked.connect(self.toggle_recovery)
+        self.btn_rec_toggle.setToolTip("Auto-Recovery")
+        self.update_recovery_ui()
+        layout.addWidget(self.btn_rec_toggle)
+        
+        # Set initial mode
+        self.set_mode(1)
+    
+    def _create_mode_button(self, text, default_mode, menu_items):
+        """Create a mode button with dropdown menu."""
+        btn = QtWidgets.QToolButton()
+        btn.setText(text)
+        btn.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        btn.clicked.connect(lambda: self.set_mode(default_mode))
+        btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        
+        menu = QtWidgets.QMenu(btn)
+        menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        
+        for name, mode in menu_items:
+            action = menu.addAction(name)
+            action.triggered.connect(lambda checked=False, m=mode: self.set_mode(m))
+        
+        btn.setMenu(menu)
+        return btn
+    
+    def _create_drawer_button(self, text, menu):
+        """Create a compact drawer button with dropdown menu."""
+        btn = QtWidgets.QToolButton()
+        btn.setText(text)
+        btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        btn.setMenu(menu)
+        btn.setFixedWidth(45)
+        btn.setStyleSheet("QToolButton { padding-right: 5px; }")
+        return btn
+    
+    def _create_tangent_menu(self):
+        """Create tangent tools menu."""
+        menu = QtWidgets.QMenu()
+        menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        
+        menu.addAction("Cycle Match").triggered.connect(TangentTools.cycle_match)
+        menu.addAction("Best Guess").triggered.connect(TangentTools.best_guess)
+        menu.addAction("Polished").triggered.connect(TangentTools.polished)
+        menu.addAction("Flow").triggered.connect(TangentTools.flow)
+        menu.addSeparator()
+        
+        bounce_menu = menu.addMenu("Bounce")
+        bounce_menu.addAction("Bounce").triggered.connect(lambda: TangentTools.bounce(0))
+        bounce_menu.addAction("Bounce In").triggered.connect(lambda: TangentTools.bounce(1))
+        bounce_menu.addAction("Bounce Out").triggered.connect(lambda: TangentTools.bounce(2))
+        
+        native_menu = menu.addMenu("Native")
+        for t in ["Auto", "Smooth", "Linear", "Flat", "Step", "Fast", "Slow", "Custom"]:
+            native_menu.addAction(t).triggered.connect(lambda c=False, x=t: TangentTools.set_native(x))
+        
+        return menu
+    
+    def _create_pose_menu(self):
+        """Create pose tools menu."""
+        menu = QtWidgets.QMenu()
+        menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        
+        menu.addAction("Copy Pose").triggered.connect(PoseTools.copy_pose)
+        menu.addAction("Paste Pose").triggered.connect(PoseTools.paste_pose)
+        menu.addSeparator()
+        menu.addAction("Mirror").triggered.connect(PoseTools.mirror_pose)
+        menu.addAction("Left ? Right").triggered.connect(PoseTools.mirror_left_to_right)
+        menu.addAction("Right ? Left").triggered.connect(PoseTools.mirror_right_to_left)
+        menu.addAction("Flip Pose").triggered.connect(PoseTools.flip_pose)
+        menu.addSeparator()
+        menu.addAction("Reset Pose").triggered.connect(PoseTools.reset_pose)
+        menu.addSeparator()
+        menu.addAction("Take Snapshot").triggered.connect(self.take_snapshot)
+        menu.addAction("Select Opposite").triggered.connect(lambda: print(SnapshotManager.select_opposite()))
+        
+        return menu
+    
+    def _create_utilities_menu(self):
+        """Create utilities menu."""
+        menu = QtWidgets.QMenu()
+        menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        
+        menu.addAction("Selection Sets").triggered.connect(lambda: SelectionSetsManager.show_window())
+        menu.addAction("Temp Pivot").triggered.connect(lambda: TempPivotUI.show_window())
+        menu.addSeparator()
+        
+        trail_menu = menu.addMenu("Motion Trail")
+        trail_menu.addAction("Create").triggered.connect(lambda: MotionTrailSystem.create())
+        trail_menu.addAction("Remove").triggered.connect(lambda: MotionTrailSystem.remove())
+        
+        menu.addSeparator()
+        menu.addAction("Ghost Toggle").triggered.connect(GhostSystem.toggle)
+        menu.addAction("Gimbal Killer").triggered.connect(lambda: print(GimbalKiller.filter_selected()))
+        
+        return menu
+    
+    def _create_keys_menu(self):
+        """Create keys menu."""
+        menu = QtWidgets.QMenu()
+        menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        
+        menu.addAction("Key Hammer").triggered.connect(do_key_hammer)
+        menu.addAction("Smart Key").triggered.connect(lambda: print(do_smart_key()))
+        menu.addAction("Smart Key All").triggered.connect(lambda: print(do_smart_key_all()))
+        menu.addAction("Delete Keys").triggered.connect(do_delete_keys)
+        menu.addSeparator()
+        menu.addAction("Nudge -1").triggered.connect(lambda: do_nudge(-1))
+        menu.addAction("Nudge +1").triggered.connect(lambda: do_nudge(1))
+        menu.addAction("Nudge -5").triggered.connect(lambda: do_nudge(-5))
+        menu.addAction("Nudge +5").triggered.connect(lambda: do_nudge(5))
+        
+        return menu
+    
+    def _build_slider_widget(self, section):
+        """Build slider widget for vertical layout."""
+        # Snap buttons row
+        self.anchor_widget = QtWidgets.QWidget()
+        self.anchor_layout = QtWidgets.QHBoxLayout(self.anchor_widget)
+        self.anchor_layout.setContentsMargins(13, 0, 13, 0)
+        self.anchor_layout.setSpacing(0)
+        
         self.snap_btns = []
         snap_values = [-100, -75, -50, -25, 0, 25, 50, 75, 100]
         for i, val in enumerate(snap_values):
-            size = 6; b = QtWidgets.QPushButton(); b.setFixedSize(size, size); b.setCursor(QtCore.Qt.PointingHandCursor)
-            is_tiny = abs(val) in [25, 50, 75]; b.setProperty("base_size", 4 if is_tiny else 6) 
-            b.setStyleSheet(f"QPushButton {{ background-color: #555; border: none; border-radius: {size/2}px; min-width: {size}px; max-width: {size}px; min-height: {size}px; max-height: {size}px; padding: 0px; margin: {(6-size)/2}px; }} QPushButton:hover {{ background-color: #FFF; }}")
+            is_tiny = abs(val) in [25, 50, 75]
+            size = 4 if is_tiny else 6
+            b = QtWidgets.QPushButton()
+            b.setFixedSize(size, size)
+            b.setCursor(QtCore.Qt.PointingHandCursor)
+            b.setProperty("base_size", size)
+            b.setStyleSheet(f"""
+                QPushButton {{ 
+                    background-color: #555; 
+                    border: none; 
+                    border-radius: {size/2}px; 
+                    min-width: {size}px; 
+                    max-width: {size}px; 
+                    min-height: {size}px; 
+                    max-height: {size}px; 
+                    padding: 0px; 
+                    margin: {(6-size)/2}px; 
+                }} 
+                QPushButton:hover {{ 
+                    background-color: #FFF; 
+                }}
+            """)
             b.clicked.connect(lambda c=False, v=val: self.snap_click(v))
-            self.anchor_layout.addWidget(b); self.snap_btns.append(b)
-            if i < len(snap_values) - 1: self.anchor_layout.addStretch(1)
-        v_sl.addWidget(self.anchor_widget)
-        self.slider = AnimmixSlider(); self.slider.setFixedHeight(30)
-        self.slider.sliderPressed.connect(self.sl_press); self.slider.sliderReleased.connect(self.sl_release); self.slider.valueChanged.connect(self.sl_change)
-        v_sl.addWidget(self.slider)
-        ov_lay = QtWidgets.QHBoxLayout()
-        self.btn_overshoot = QtWidgets.QPushButton("Overshoot: OFF"); self.btn_overshoot.setFixedHeight(20); self.btn_overshoot.setStyleSheet("font-size: 10px; background: transparent; border: 1px solid #444; color: #888;")
-        self.btn_overshoot.clicked.connect(self.toggle_overshoot)
-        ov_lay.addStretch(); ov_lay.addWidget(self.btn_overshoot)
-        v_sl.addLayout(ov_lay)
-        self.layout.addWidget(slider_group)
+            self.anchor_layout.addWidget(b)
+            self.snap_btns.append(b)
+            if i < len(snap_values) - 1:
+                self.anchor_layout.addStretch(1)
         
-        # 3. TANGENTS
-        tg_grp = QtWidgets.QGroupBox("TANGENTS"); tg_lay = QtWidgets.QGridLayout(tg_grp); tg_lay.setSpacing(6); tg_lay.setContentsMargins(8,15,8,8)
-        tg_lay.addWidget(self.mk_btn("Cycle", TangentTools.cycle_match), 0,0); tg_lay.addWidget(self.mk_btn("Guess", TangentTools.best_guess), 0,1); tg_lay.addWidget(self.mk_btn("Polish", TangentTools.polished), 0,2)
-        tg_lay.addWidget(self.mk_btn("Flow", TangentTools.flow), 1,0)
-        btn_bnc = QtWidgets.QToolButton(); btn_bnc.setText("Bounce"); btn_bnc.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        section.add_widget(self.anchor_widget)
+        
+        # Slider
+        self.slider = AnimmixSlider()
+        self.slider.setFixedHeight(30)
+        self.slider.sliderPressed.connect(self.sl_press)
+        self.slider.sliderReleased.connect(self.sl_release)
+        self.slider.valueChanged.connect(self.sl_change)
+        section.add_widget(self.slider)
+        
+        # Overshoot button
+        ov_lay = QtWidgets.QHBoxLayout()
+        self.btn_overshoot = QtWidgets.QPushButton("Overshoot: OFF")
+        self.btn_overshoot.setFixedHeight(20)
+        self.btn_overshoot.setStyleSheet("font-size: 10px; background: transparent; border: 1px solid #444; color: #888;")
+        self.btn_overshoot.clicked.connect(self.toggle_overshoot)
+        ov_lay.addStretch()
+        ov_lay.addWidget(self.btn_overshoot)
+        section.add_layout(ov_lay)
+    
+    def _build_tangent_widget(self, section):
+        """Build tangent buttons for vertical layout."""
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(4)
+        
+        grid.addWidget(self._mk_btn("Cycle", TangentTools.cycle_match), 0, 0)
+        grid.addWidget(self._mk_btn("Guess", TangentTools.best_guess), 0, 1)
+        grid.addWidget(self._mk_btn("Polish", TangentTools.polished), 0, 2)
+        grid.addWidget(self._mk_btn("Flow", TangentTools.flow), 1, 0)
+        
+        # Bounce button with menu
+        btn_bnc = QtWidgets.QToolButton()
+        btn_bnc.setText("Bounce")
+        btn_bnc.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_bnc.clicked.connect(lambda: TangentTools.bounce(0))
-        bm = QtWidgets.QMenu(btn_bnc); bm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        bm.addAction("Bounce In").triggered.connect(lambda: TangentTools.bounce(1)); bm.addAction("Bounce Out").triggered.connect(lambda: TangentTools.bounce(2))
-        btn_bnc.setMenu(bm); tg_lay.addWidget(btn_bnc, 1, 1)
-        btn_nat = QtWidgets.QToolButton(); btn_nat.setText("Native"); btn_nat.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        btn_bnc.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        bm = QtWidgets.QMenu(btn_bnc)
+        bm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        bm.addAction("Bounce In").triggered.connect(lambda: TangentTools.bounce(1))
+        bm.addAction("Bounce Out").triggered.connect(lambda: TangentTools.bounce(2))
+        btn_bnc.setMenu(bm)
+        grid.addWidget(btn_bnc, 1, 1)
+        
+        # Native button with menu
+        btn_nat = QtWidgets.QToolButton()
+        btn_nat.setText("Native")
+        btn_nat.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_nat.clicked.connect(lambda: TangentTools.set_native("Auto"))
-        nm = QtWidgets.QMenu(btn_nat); nm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        for t in ["Auto","Smooth","Linear","Flat","Step","Fast","Slow","Custom"]: nm.addAction(t).triggered.connect(lambda c=False,x=t: TangentTools.set_native(x))
-        btn_nat.setMenu(nm); tg_lay.addWidget(btn_nat, 1,2)
-        self.layout.addWidget(tg_grp)
-
-        # 4. POSE
-        pg_grp = QtWidgets.QGroupBox("POSE")
-        p_lay = QtWidgets.QVBoxLayout(pg_grp)
-        p_lay.setContentsMargins(8, 15, 8, 8)
-        p_lay.setSpacing(6)
-
-        # Row 1: Copy, Paste, Mirror, Reset
+        btn_nat.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        nm = QtWidgets.QMenu(btn_nat)
+        nm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        for t in ["Auto", "Smooth", "Linear", "Flat", "Step", "Fast", "Slow", "Custom"]:
+            nm.addAction(t).triggered.connect(lambda c=False, x=t: TangentTools.set_native(x))
+        btn_nat.setMenu(nm)
+        grid.addWidget(btn_nat, 1, 2)
+        
+        section.add_layout(grid)
+    
+    def _build_pose_widget(self, section):
+        """Build pose buttons for vertical layout."""
+        # Row 1
         row1 = QtWidgets.QHBoxLayout()
         row1.setSpacing(4)
-
-        btn_copy = self.mk_btn("Copy", PoseTools.copy_pose)
-        btn_paste = self.mk_btn("Paste", PoseTools.paste_pose)
-
+        
+        row1.addWidget(self._mk_btn("Copy", PoseTools.copy_pose))
+        row1.addWidget(self._mk_btn("Paste", PoseTools.paste_pose))
+        
+        # Mirror button with menu
         btn_mir = QtWidgets.QToolButton()
         btn_mir.setText("Mirror")
         btn_mir.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_mir.clicked.connect(lambda: PoseTools.mirror_pose())
+        btn_mir.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         mm = QtWidgets.QMenu(btn_mir)
         mm.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        mm.addAction("Left > ").triggered.connect(lambda: PoseTools.mirror_left_to_right())
-        mm.addAction(" < Right").triggered.connect(lambda: PoseTools.mirror_right_to_left())
+        mm.addAction("Left ?").triggered.connect(lambda: PoseTools.mirror_left_to_right())
+        mm.addAction("? Right").triggered.connect(lambda: PoseTools.mirror_right_to_left())
         mm.addSeparator()
         mm.addAction("Flip Pose").triggered.connect(lambda: PoseTools.flip_pose())
         btn_mir.setMenu(mm)
-
-        btn_reset = self.mk_btn("Reset", PoseTools.reset_pose)
-
-        for b in [btn_copy, btn_paste, btn_mir, btn_reset]:
-            b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-            row1.addWidget(b)
-
-        p_lay.addLayout(row1)
-
-        # Row 2: Snapshot, Select Opposite
+        row1.addWidget(btn_mir)
+        
+        row1.addWidget(self._mk_btn("Reset", PoseTools.reset_pose))
+        section.add_layout(row1)
+        
+        # Row 2
         row2 = QtWidgets.QHBoxLayout()
         row2.setSpacing(4)
-
+        
+        # Snapshot button
         btn_snap = QtWidgets.QToolButton()
         btn_snap.setText("Snapshot")
         btn_snap.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_snap.clicked.connect(self.take_snapshot)
-
+        btn_snap.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         snap_menu = QtWidgets.QMenu(btn_snap)
         snap_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
         snap_menu.addAction("Take Snapshot").triggered.connect(self.take_snapshot)
@@ -8084,12 +8693,14 @@ class AnimmixDockWidget(QtWidgets.QDockWidget):
         snap_menu.addSeparator()
         snap_menu.addAction("Clear Snapshot").triggered.connect(self.clear_snapshot)
         btn_snap.setMenu(snap_menu)
-
+        row2.addWidget(btn_snap)
+        
+        # Select Opposite button
         btn_sel_opp = QtWidgets.QToolButton()
         btn_sel_opp.setText("Select Opposite")
         btn_sel_opp.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_sel_opp.clicked.connect(lambda: print(SnapshotManager.select_opposite()))
-
+        btn_sel_opp.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sel_menu = QtWidgets.QMenu(btn_sel_opp)
         sel_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
         sel_menu.addAction("Select All").triggered.connect(lambda: print(SnapshotManager.select_all()))
@@ -8097,279 +8708,254 @@ class AnimmixDockWidget(QtWidgets.QDockWidget):
         sel_menu.addAction("Select Right").triggered.connect(lambda: print(SnapshotManager.select_all_right()))
         sel_menu.addAction("Select Center").triggered.connect(lambda: print(SnapshotManager.select_all_center()))
         btn_sel_opp.setMenu(sel_menu)
-
-        btn_snap.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        btn_sel_opp.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-
-        row2.addWidget(btn_snap)
         row2.addWidget(btn_sel_opp)
-
-        p_lay.addLayout(row2)
-
-        self.layout.addWidget(pg_grp)
-
-        # 4.5 UTILITIES
-        util_grp = QtWidgets.QGroupBox("UTILITIES")
-        util_lay = QtWidgets.QVBoxLayout(util_grp)
-        util_lay.setContentsMargins(8, 15, 8, 8)
-        util_lay.setSpacing(6)
-
-        util_row = QtWidgets.QHBoxLayout()
-        util_row.setSpacing(4)
-
-        btn_sel_sets = QtWidgets.QPushButton("Sel Sets")
-        btn_sel_sets.clicked.connect(lambda: SelectionSetsManager.show_window())
-        btn_sel_sets.setToolTip("Open Selection Sets Manager")
-
-        btn_temp_pivot = QtWidgets.QPushButton("Temp Pivot")
-        btn_temp_pivot.clicked.connect(lambda: TempPivotUI.show_window())
-        btn_temp_pivot.setToolTip("Temporary pivot for rotation")
-
-        btn_motion_trail = QtWidgets.QToolButton()
-        btn_motion_trail.setText("Motion Trail")
-        btn_motion_trail.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
-        btn_motion_trail.clicked.connect(lambda: MotionTrailSystem.create())
-
-        mt_menu = QtWidgets.QMenu(btn_motion_trail)
+        
+        section.add_layout(row2)
+    
+    def _build_utilities_widget(self, section):
+        """Build utilities buttons for vertical layout."""
+        # Row 1
+        row1 = QtWidgets.QHBoxLayout()
+        row1.setSpacing(4)
+        
+        row1.addWidget(self._mk_btn("Sel Sets", lambda: SelectionSetsManager.show_window()))
+        row1.addWidget(self._mk_btn("Temp Pivot", lambda: TempPivotUI.show_window()))
+        
+        # Motion Trail button
+        btn_trail = QtWidgets.QToolButton()
+        btn_trail.setText("Motion Trail")
+        btn_trail.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        btn_trail.clicked.connect(lambda: MotionTrailSystem.create())
+        btn_trail.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        
+        mt_menu = QtWidgets.QMenu(btn_trail)
         mt_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
         mt_menu.addAction("Create").triggered.connect(lambda: MotionTrailSystem.create())
         mt_menu.addAction("Remove").triggered.connect(lambda: MotionTrailSystem.remove())
         mt_menu.addSeparator()
         
-         # Style submenu
         style_menu = mt_menu.addMenu("Style")
-        style_menu.addAction("Velocity (Heat Map)").triggered.connect(lambda: MotionTrailSystem.set_style('velocity'))
+        style_menu.addAction("Velocity").triggered.connect(lambda: MotionTrailSystem.set_style('velocity'))
         style_menu.addAction("Constant").triggered.connect(lambda: MotionTrailSystem.set_style('constant'))
         style_menu.addAction("Alternating").triggered.connect(lambda: MotionTrailSystem.set_style('alternating'))
-        style_menu.addAction("Dots Only").triggered.connect(lambda: MotionTrailSystem.set_style('dots'))
+        style_menu.addAction("Dots").triggered.connect(lambda: MotionTrailSystem.set_style('dots'))
         style_menu.addAction("Thick").triggered.connect(lambda: MotionTrailSystem.set_style('thick'))
         style_menu.addAction("Dashed").triggered.connect(lambda: MotionTrailSystem.set_style('dashed'))
         style_menu.addAction("Depth").triggered.connect(lambda: MotionTrailSystem.set_style('depth'))
         
-        offset_menu = mt_menu.addMenu("Offset")
-        offset_menu.addAction("Set Offset...").triggered.connect(lambda: MotionTrailSystem.set_offset())
-        offset_menu.addAction("Clear Offset").triggered.connect(lambda: MotionTrailSystem.clear_offset())
+        range_menu = mt_menu.addMenu("Range")
+        for r in [3, 6, 12, 24, 48]:
+            range_menu.addAction(str(r)).triggered.connect(lambda c=False, x=r: MotionTrailSystem.set_range(x))
         
-        range_menu = mt_menu.addMenu("Frames Before/After")
-        range_menu.addAction("3").triggered.connect(lambda: MotionTrailSystem.set_range(3))
-        range_menu.addAction("6").triggered.connect(lambda: MotionTrailSystem.set_range(6))
-        range_menu.addAction("12").triggered.connect(lambda: MotionTrailSystem.set_range(12))
-        range_menu.addAction("24").triggered.connect(lambda: MotionTrailSystem.set_range(24))
-        range_menu.addAction("48").triggered.connect(lambda: MotionTrailSystem.set_range(48))
+        btn_trail.setMenu(mt_menu)
+        row1.addWidget(btn_trail)
         
-        space_menu = mt_menu.addMenu("Space")
-        space_menu.addAction("World").triggered.connect(lambda: MotionTrailSystem.set_space('world'))
-        space_menu.addAction("Camera").triggered.connect(lambda: MotionTrailSystem.set_space('camera'))
-        space_menu.addAction("Object...").triggered.connect(lambda: MotionTrailSystem.set_space('object', rt.selection[0] if rt.selection.count > 0 else None))
+        section.add_layout(row1)
         
-        mt_menu.addSeparator()
-        mt_menu.addAction("Force Refresh").triggered.connect(lambda: MotionTrailSystem.force_refresh())
+        # Row 2
+        row2 = QtWidgets.QHBoxLayout()
+        row2.setSpacing(4)
         
-        btn_motion_trail.setMenu(mt_menu)
-
-        for b in [btn_sel_sets, btn_temp_pivot, btn_motion_trail]:
-            b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-            util_row.addWidget(b)
-
-        util_lay.addLayout(util_row)
-        self.layout.addWidget(util_grp)
-        # Row 2: Ghost, Gimbal Killer
-        util_row2 = QtWidgets.QHBoxLayout()
-        util_row2.setSpacing(4)
-
-        # Ghost button with menu
+        # Ghost button
         btn_ghost = QtWidgets.QToolButton()
         btn_ghost.setText("Ghost")
         btn_ghost.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_ghost.clicked.connect(lambda: GhostSystem.toggle())
-        btn_ghost.setToolTip("Onion skinning - show previous/next frames")
-
+        btn_ghost.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        
         self.ghost_menu = QtWidgets.QMenu(btn_ghost)
         self.ghost_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        
-        def build_ghost_menu():
-            self.ghost_menu.clear()
-            
-            # Enable/Disable
-            status_text = "Disable Ghosting" if GhostSystem.is_enabled() else "Enable Ghosting"
-            self.ghost_menu.addAction(status_text).triggered.connect(GhostSystem.toggle)
-            
-            self.ghost_menu.addSeparator()
-            
-            # Total Frames
-            frames_menu = self.ghost_menu.addMenu("Total Frames")
-            for f in [2, 4, 6, 8, 10]:
-                action = frames_menu.addAction(str(f))
-                action.triggered.connect(lambda chk=False, x=f: GhostSystem.set_total_frames(x))
-            
-            # Type (Before / After / Both)
-            type_menu = self.ghost_menu.addMenu("Show")
-            current_type = GhostSystem.get_type()
-            
-            before_text = "Before Only ?" if current_type == 1 else "Before Only"
-            type_menu.addAction(before_text).triggered.connect(GhostSystem.set_type_before)
-            
-            after_text = "After Only ?" if current_type == 2 else "After Only"
-            type_menu.addAction(after_text).triggered.connect(GhostSystem.set_type_after)
-            
-            both_text = "Both ?" if current_type == 3 else "Both"
-            type_menu.addAction(both_text).triggered.connect(GhostSystem.set_type_both)
-            
-            # Step
-            step_menu = self.ghost_menu.addMenu("Frame Step")
-            step_menu.addAction("Every Frame").triggered.connect(lambda: GhostSystem.set_step(1))
-            step_menu.addAction("Every 2nd").triggered.connect(lambda: GhostSystem.set_step(2))
-            step_menu.addAction("Every 5th").triggered.connect(lambda: GhostSystem.set_step(5))
-            
-            self.ghost_menu.addSeparator()
-            
-            # Display options
-            wireframe_text = "Wireframe: ON " if rt.GhostingManager.DisplayGhostInWireframe else "Wireframe: OFF"
-            self.ghost_menu.addAction(wireframe_text).triggered.connect(lambda: GhostSystem.set_wireframe(not rt.GhostingManager.DisplayGhostInWireframe))
-            
-            numbers_text = "Frame Numbers: ON " if rt.GhostingManager.ShowGhostFrameNumbers else "Frame Numbers: OFF"
-            self.ghost_menu.addAction(numbers_text).triggered.connect(lambda: GhostSystem.show_frame_numbers(not rt.GhostingManager.ShowGhostFrameNumbers))
-        
-        self.ghost_menu.aboutToShow.connect(build_ghost_menu)
+        self.ghost_menu.aboutToShow.connect(self._build_ghost_menu)
         btn_ghost.setMenu(self.ghost_menu)
-
-        # Gimbal Killer button with menu
+        row2.addWidget(btn_ghost)
+        
+        # Gimbal Killer button
         btn_gimbal = QtWidgets.QToolButton()
         btn_gimbal.setText("Gimbal Killer")
         btn_gimbal.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         btn_gimbal.clicked.connect(lambda: print(GimbalKiller.filter_selected()))
-        btn_gimbal.setToolTip("Fix Euler rotation flips (gimbal lock)")
-
+        btn_gimbal.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        
         self.gimbal_menu = QtWidgets.QMenu(btn_gimbal)
         self.gimbal_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
-        
-        def build_gimbal_menu():
-            self.gimbal_menu.clear()
-            
-            # Main filters
-            self.gimbal_menu.addAction("Filter Selected").triggered.connect(lambda: print(GimbalKiller.filter_selected()))
-            self.gimbal_menu.addAction("Filter Smart").triggered.connect(lambda: print(GimbalKiller.filter_smart()))
-            self.gimbal_menu.addAction("Filter Selected Keys").triggered.connect(lambda: print(GimbalKiller.filter_selected_keys()))
-
-            self.gimbal_menu.addSeparator()
-
-            # Per-axis filtering
-            axis_menu = self.gimbal_menu.addMenu("Filter Axis")
-            axis_menu.addAction("X Axis Only").triggered.connect(lambda: print(GimbalKiller.filter_axis(0)))
-            axis_menu.addAction("Y Axis Only").triggered.connect(lambda: print(GimbalKiller.filter_axis(1)))
-            axis_menu.addAction("Z Axis Only").triggered.connect(lambda: print(GimbalKiller.filter_axis(2)))
-
-            self.gimbal_menu.addSeparator()
-
-            # Threshold
-            threshold_menu = self.gimbal_menu.addMenu("Threshold")
-            threshold_menu.addAction("90 deg (Sensitive)").triggered.connect(lambda: GimbalKiller.set_threshold(90))
-            threshold_menu.addAction("120 deg (Normal)").triggered.connect(lambda: GimbalKiller.set_threshold(120))
-            threshold_menu.addAction("150 deg (Default)").triggered.connect(lambda: GimbalKiller.set_threshold(150))
-            threshold_menu.addAction("180 deg (Conservative)").triggered.connect(lambda: GimbalKiller.set_threshold(180))
-
-            # Gimbal zone
-            zone_menu = self.gimbal_menu.addMenu("Gimbal Zone")
-            zone_menu.addAction("10 deg (Tight)").triggered.connect(lambda: GimbalKiller.set_gimbal_zone(10))
-            zone_menu.addAction("20 deg (Default)").triggered.connect(lambda: GimbalKiller.set_gimbal_zone(20))
-            zone_menu.addAction("30 deg (Wide)").triggered.connect(lambda: GimbalKiller.set_gimbal_zone(30))
-
-            self.gimbal_menu.addSeparator()
-
-            # Add Keys toggle - text shows current state
-            add_keys_text = "Add Keys: ON" if GimbalKiller.get_add_keys() else "Add Keys: OFF"
-            self.gimbal_menu.addAction(add_keys_text).triggered.connect(lambda: GimbalKiller.set_add_keys(not GimbalKiller.get_add_keys()))
-        
-        self.gimbal_menu.aboutToShow.connect(build_gimbal_menu)
+        self.gimbal_menu.aboutToShow.connect(self._build_gimbal_menu)
         btn_gimbal.setMenu(self.gimbal_menu)
-
-        for b in [btn_ghost, btn_gimbal]:
-            b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-            util_row2.addWidget(b)
-
-        util_lay.addLayout(util_row2)
-        self.layout.addWidget(util_grp)
+        row2.addWidget(btn_gimbal)
         
-        
-        # 5. KEYS
-        k_grp = QtWidgets.QGroupBox("KEYS") 
-        k_lay = QtWidgets.QVBoxLayout(k_grp); k_lay.setSpacing(6); k_lay.setContentsMargins(8,15,8,8)
-        r1 = QtWidgets.QHBoxLayout(); r1.setSpacing(6)
-        r1.addWidget(self.mk_btn("Hammer", do_key_hammer))
-        btn_smart_key = QtWidgets.QToolButton()
-        btn_smart_key.setText("Smart Key")
-        btn_smart_key.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
-        btn_smart_key.clicked.connect(lambda: print(do_smart_key()))
-        
-        smart_menu = QtWidgets.QMenu(btn_smart_key)
-        smart_menu.addAction("Smart Key All Channels").triggered.connect(lambda: print(do_smart_key_all()))
-        smart_menu.addAction("Set Key").triggered.connect(lambda: print(do_set_key()))
-        btn_smart_key.setMenu(smart_menu)
-        
-        r1.addWidget(btn_smart_key)
-        r1.addWidget(self.mk_btn("Delete", do_delete_keys))
-        k_lay.addLayout(r1)
-        r2 = QtWidgets.QHBoxLayout(); r2.setSpacing(6)
-        self.sp_nudge = QtWidgets.QSpinBox(); self.sp_nudge.setRange(1,100); self.sp_nudge.setValue(1); self.sp_nudge.setAlignment(QtCore.Qt.AlignCenter)
-        r2.addWidget(self.mk_btn("< Nudge", lambda: do_nudge(-self.sp_nudge.value()))); r2.addWidget(self.sp_nudge); r2.addWidget(self.mk_btn("Nudge >", lambda: do_nudge(self.sp_nudge.value())))
-        k_lay.addLayout(r2)
-        
-        self.layout.addWidget(k_grp)
-        
-        # 6. RECOVERY
-        rec_frame = QtWidgets.QFrame(); rec_frame.setStyleSheet("background: #1F1F1F; border-radius: 4px; padding: 4px; border: 1px solid #333;")
-        r_lay = QtWidgets.QHBoxLayout(rec_frame); r_lay.setContentsMargins(4,0,4,0)
-        self.btn_rec_toggle = QtWidgets.QPushButton(); self.btn_rec_toggle.setFixedSize(10,10); self.btn_rec_toggle.clicked.connect(self.toggle_recovery)
-        lbl_rec = QtWidgets.QLabel("Auto-Recovery"); lbl_rec.setStyleSheet("color: #777; font-weight: bold; border: none; background: transparent; margin-left: 5px;")
-        self.btn_hist = QtWidgets.QPushButton("History"); self.btn_hist.setStyleSheet("background: transparent; color: #888; text-align: right; padding: 0; font-size: 10px; border: none;")
-        self.btn_hist.setCursor(QtCore.Qt.PointingHandCursor); self.btn_hist.clicked.connect(self.show_history)
-        r_lay.addWidget(self.btn_rec_toggle); r_lay.addWidget(lbl_rec); r_lay.addStretch(); r_lay.addWidget(self.btn_hist)
-        self.layout.addStretch(); self.layout.addWidget(rec_frame)
-        self.update_recovery_ui(); self.set_mode(1)
+        section.add_layout(row2)
     
-    def update_add_keys_checkbox(self):
-        try:
-            self.add_keys_action.setChecked(GimbalKiller.get_add_keys())
-        except:
-            pass
+    def _build_ghost_menu(self):
+        """Build ghost menu dynamically."""
+        self.ghost_menu.clear()
+        
+        status_text = "Disable Ghosting" if GhostSystem.is_enabled() else "Enable Ghosting"
+        self.ghost_menu.addAction(status_text).triggered.connect(GhostSystem.toggle)
+        self.ghost_menu.addSeparator()
+        
+        frames_menu = self.ghost_menu.addMenu("Total Frames")
+        for f in [2, 4, 6, 8, 10]:
+            frames_menu.addAction(str(f)).triggered.connect(lambda c=False, x=f: GhostSystem.set_total_frames(x))
+        
+        type_menu = self.ghost_menu.addMenu("Show")
+        type_menu.addAction("Before Only").triggered.connect(GhostSystem.set_type_before)
+        type_menu.addAction("After Only").triggered.connect(GhostSystem.set_type_after)
+        type_menu.addAction("Both").triggered.connect(GhostSystem.set_type_both)
+        
+        step_menu = self.ghost_menu.addMenu("Frame Step")
+        step_menu.addAction("Every Frame").triggered.connect(lambda: GhostSystem.set_step(1))
+        step_menu.addAction("Every 2nd").triggered.connect(lambda: GhostSystem.set_step(2))
+        step_menu.addAction("Every 5th").triggered.connect(lambda: GhostSystem.set_step(5))
     
-    def mk_btn(self, txt, func):
-        b = QtWidgets.QPushButton(txt); b.clicked.connect(func); return b
-
+    def _build_gimbal_menu(self):
+        """Build gimbal killer menu dynamically."""
+        self.gimbal_menu.clear()
+        
+        self.gimbal_menu.addAction("Filter Selected").triggered.connect(lambda: print(GimbalKiller.filter_selected()))
+        self.gimbal_menu.addAction("Filter Smart").triggered.connect(lambda: print(GimbalKiller.filter_smart()))
+        self.gimbal_menu.addAction("Filter Selected Keys").triggered.connect(lambda: print(GimbalKiller.filter_selected_keys()))
+        self.gimbal_menu.addSeparator()
+        
+        axis_menu = self.gimbal_menu.addMenu("Filter Axis")
+        axis_menu.addAction("X Axis").triggered.connect(lambda: print(GimbalKiller.filter_axis(0)))
+        axis_menu.addAction("Y Axis").triggered.connect(lambda: print(GimbalKiller.filter_axis(1)))
+        axis_menu.addAction("Z Axis").triggered.connect(lambda: print(GimbalKiller.filter_axis(2)))
+    
+    def _build_keys_widget(self, section):
+        """Build keys buttons for vertical layout."""
+        # Row 1
+        row1 = QtWidgets.QHBoxLayout()
+        row1.setSpacing(4)
+        
+        row1.addWidget(self._mk_btn("Hammer", do_key_hammer))
+        
+        # Smart Key button
+        btn_smart = QtWidgets.QToolButton()
+        btn_smart.setText("Smart Key")
+        btn_smart.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        btn_smart.clicked.connect(lambda: print(do_smart_key()))
+        btn_smart.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        smart_menu = QtWidgets.QMenu(btn_smart)
+        smart_menu.setStyleSheet("QMenu { background: #333; color: #EEE; } QMenu::item:selected { background: #555; }")
+        smart_menu.addAction("Smart Key All").triggered.connect(lambda: print(do_smart_key_all()))
+        btn_smart.setMenu(smart_menu)
+        row1.addWidget(btn_smart)
+        
+        row1.addWidget(self._mk_btn("Delete", do_delete_keys))
+        section.add_layout(row1)
+        
+        # Row 2 - Nudge
+        row2 = QtWidgets.QHBoxLayout()
+        row2.setSpacing(4)
+        
+        self.sp_nudge = QtWidgets.QSpinBox()
+        self.sp_nudge.setRange(1, 100)
+        self.sp_nudge.setValue(1)
+        self.sp_nudge.setAlignment(QtCore.Qt.AlignCenter)
+        self.sp_nudge.setFixedWidth(50)
+        
+        row2.addWidget(self._mk_btn("< Nudge", lambda: do_nudge(-self.sp_nudge.value())))
+        row2.addWidget(self.sp_nudge)
+        row2.addWidget(self._mk_btn("Nudge >", lambda: do_nudge(self.sp_nudge.value())))
+        section.add_layout(row2)
+    
+    def _build_recovery_widget(self, layout):
+        """Build recovery footer widget."""
+        rec_frame = QtWidgets.QFrame()
+        rec_frame.setStyleSheet("background: #1F1F1F; border-radius: 4px; padding: 4px; border: 1px solid #333;")
+        r_lay = QtWidgets.QHBoxLayout(rec_frame)
+        r_lay.setContentsMargins(4, 0, 4, 0)
+        
+        self.btn_rec_toggle = QtWidgets.QPushButton()
+        self.btn_rec_toggle.setFixedSize(10, 10)
+        self.btn_rec_toggle.clicked.connect(self.toggle_recovery)
+        
+        lbl_rec = QtWidgets.QLabel("Auto-Recovery")
+        lbl_rec.setStyleSheet("color: #777; font-weight: bold; border: none; background: transparent; margin-left: 5px;")
+        
+        self.btn_hist = QtWidgets.QPushButton("History")
+        self.btn_hist.setStyleSheet("background: transparent; color: #888; text-align: right; padding: 0; font-size: 10px; border: none;")
+        self.btn_hist.setCursor(QtCore.Qt.PointingHandCursor)
+        self.btn_hist.clicked.connect(self.show_history)
+        
+        r_lay.addWidget(self.btn_rec_toggle)
+        r_lay.addWidget(lbl_rec)
+        r_lay.addStretch()
+        r_lay.addWidget(self.btn_hist)
+        
+        layout.addWidget(rec_frame)
+        self.update_recovery_ui()
+    
+    def _mk_btn(self, text, func):
+        """Create a simple button."""
+        btn = QtWidgets.QPushButton(text)
+        btn.clicked.connect(func)
+        btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        return btn
+    
     def set_mode(self, m):
+        """Set the current mode and update UI."""
         self.mode = m
         clear_cache()
         clear_pushpull_cache()
         
-        cols = {1:"#32CD32", 2:"#00CED1", 3:"#FFA500", 4:"#FFD700", 5:"#AAAAAA", 6:"#FF4444", 7:"#8A2BE2", 8:"#FF69B4", 9:"#87CEEB", 10:"#FF6347"}
+        cols = {
+            1: "#32CD32", 2: "#00CED1", 3: "#FFA500", 4: "#FFD700",
+            5: "#AAAAAA", 6: "#FF4444", 7: "#8A2BE2", 8: "#FF69B4",
+            9: "#87CEEB", 10: "#FF6347"
+        }
         c = cols.get(m, "#32CD32")
         self.slider.set_color(c)
         
-        # Update button text based on mode
+        # Update button text
         tween_modes = {1: "Tween", 2: "Space", 3: "Offset"}
         blend_modes = {4: "Blend", 7: "Simplify"}
         favor_modes = {8: "Favor", 5: "Default", 9: "Smooth", 10: "Noise"}
         
-        if m in tween_modes:
-            self.btn_tween.setText(tween_modes[m])
-        if m in blend_modes:
-            self.btn_ease.setText(blend_modes[m])
-        if m in favor_modes:
-            self.btn_favor.setText(favor_modes[m])
+        if self.current_layout_mode == self.LAYOUT_VERTICAL:
+            if m in tween_modes:
+                self.btn_tween.setText(tween_modes[m])
+            if m in blend_modes:
+                self.btn_ease.setText(blend_modes[m])
+            if m in favor_modes:
+                self.btn_favor.setText(favor_modes[m])
+        else:
+            # Compact labels for horizontal
+            if m in tween_modes:
+                self.btn_tween.setText(tween_modes[m][:3])
+            if m in blend_modes:
+                self.btn_ease.setText(blend_modes[m][:3])
+            if m in favor_modes:
+                self.btn_favor.setText(favor_modes[m][:3])
         
+        # Style active button
         base = ""
         act = f"background-color: {c}; color: #111; border: 1px solid {c}; font-weight: bold;"
         
-        self.btn_tween.setStyleSheet(act if m in [1,2,3] else base)
-        self.btn_ease.setStyleSheet(act if m in [4,7] else base)
-        self.btn_favor.setStyleSheet(act if m in [8,5,9,10] else base)
+        self.btn_tween.setStyleSheet(act if m in [1, 2, 3] else base)
+        self.btn_ease.setStyleSheet(act if m in [4, 7] else base)
+        self.btn_favor.setStyleSheet(act if m in [8, 5, 9, 10] else base)
         
-        for b in self.snap_btns: 
-            size = b.property("base_size")
-            if not size:
-                size = 6
-            b.setStyleSheet(f"QPushButton {{ background-color: {c}; border: none; border-radius: {size/2}px; min-width: {size}px; max-width: {size}px; min-height: {size}px; max-height: {size}px; padding: 0px; margin: {(6-size)/2}px; }} QPushButton:hover {{ background-color: #FFF; }}")
-
+        # Update snap buttons (only in vertical mode)
+        if self.current_layout_mode == self.LAYOUT_VERTICAL and hasattr(self, 'snap_btns'):
+            for b in self.snap_btns:
+                size = b.property("base_size") or 6
+                b.setStyleSheet(f"""
+                    QPushButton {{ 
+                        background-color: {c}; 
+                        border: none; 
+                        border-radius: {size/2}px; 
+                        min-width: {size}px; 
+                        max-width: {size}px; 
+                        min-height: {size}px; 
+                        max-height: {size}px; 
+                        padding: 0px; 
+                        margin: {(6-size)/2}px; 
+                    }} 
+                    QPushButton:hover {{ 
+                        background-color: #FFF; 
+                    }}
+                """)
+    
     def take_snapshot(self):
         result = SnapshotManager.take_snapshot()
         print(result)
@@ -8389,19 +8975,19 @@ class AnimmixDockWidget(QtWidgets.QDockWidget):
     def clear_snapshot(self):
         SnapshotManager.clear_all_snapshots()
         print("Snapshots cleared")
-
+    
     def sl_press(self):
-        if self.mode == 3:  # Offset mode
+        if self.mode == 3:
             build_offset_cache()
-        elif self.mode == 6:  # Force/Push-Pull mode
+        elif self.mode == 6:
             build_pushpull_cache()
-        elif self.mode == 7:  # Simplify
+        elif self.mode == 7:
             build_simplify_cache()
-        elif self.mode == 8:  # Favor
+        elif self.mode == 8:
             build_favor_cache()
-        elif self.mode == 9:  # Smooth
+        elif self.mode == 9:
             build_smooth_cache()
-        elif self.mode == 10:  # Noise
+        elif self.mode == 10:
             build_noise_cache()
         elif self.mode != 4:
             build_cache()
@@ -8421,32 +9007,123 @@ class AnimmixDockWidget(QtWidgets.QDockWidget):
     def sl_change(self, val):
         t = val / 100.0
         finalize_selected_keys(t, self.mode)
-    def snap_click(self, val): 
-        self.sl_press(); self.slider.setValue(val); self.sl_release()
+
+    def snap_click(self, val):
+        self.sl_press()
+        self.slider.setValue(val)
+        self.sl_release()
+
     def toggle_overshoot(self):
-        self.overshoot = not self.overshoot; self.btn_overshoot.setText(f"Overshoot: {'ON' if self.overshoot else 'OFF'}")
+        self.overshoot = not self.overshoot
+        if self.current_layout_mode == self.LAYOUT_VERTICAL:
+            self.btn_overshoot.setText(f"Overshoot: {'ON' if self.overshoot else 'OFF'}")
+        else:
+            self.btn_overshoot.setToolTip(f"Overshoot: {'ON' if self.overshoot else 'OFF'}")
+            self.btn_overshoot.setStyleSheet(
+                "font-size: 9px; padding: 2px; background-color: #32CD32; color: #111;" if self.overshoot 
+                else "font-size: 9px; padding: 2px;"
+            )
         self.slider.setRange(-200 if self.overshoot else -100, 200 if self.overshoot else 100)
+
     def toggle_recovery(self):
         self.recovery_active = not self.recovery_active
-        if self.recovery_active: self.recovery_timer.start(); AnimRecoveryTools.create_snapshot()
-        else: self.recovery_timer.stop()
+        if self.recovery_active:
+            self.recovery_timer.start()
+            AnimRecoveryTools.create_snapshot()
+        else:
+            self.recovery_timer.stop()
         self.update_recovery_ui()
+
     def update_recovery_ui(self):
         c = "#32CD32" if self.recovery_active else "#444"
-        self.btn_rec_toggle.setStyleSheet(f"background-color: {c}; border-radius: 5px; border: none; min-width: 10px; max-width: 10px; min-height: 10px; max-height: 10px; padding: 0px; margin: 0px;")
-    
+        self.btn_rec_toggle.setStyleSheet(f"""
+            background-color: {c}; 
+            border-radius: 5px; 
+            border: none; 
+            min-width: 10px; 
+            max-width: 10px; 
+            min-height: 10px; 
+            max-height: 10px; 
+            padding: 0px; 
+            margin: 0px;
+        """)
+
     def auto_save(self):
-        if self.recovery_active: AnimRecoveryTools.create_snapshot()
-        
+        if self.recovery_active:
+            AnimRecoveryTools.create_snapshot()
+
     def show_history(self):
-        d = RecoveryHistoryDialog(self); p = self.btn_hist.mapToGlobal(QtCore.QPoint(0,0)); d.move(p.x(), p.y() - d.height()); d.show()
+        d = RecoveryHistoryDialog(self)
+        p = self.btn_hist.mapToGlobal(QtCore.QPoint(0, 0))
+        d.move(p.x(), p.y() - d.height())
+        d.show()
+
+    def closeEvent(self, event):
+        """Clean up on close."""
+        self.recovery_timer.stop()
+        
+        try:
+            MotionTrailSystem.remove()
+        except:
+            pass
+        
+        clear_cache()
+        clear_offset_cache()
+        clear_pushpull_cache()
+        clear_favor_cache()
+        clear_simplify_cache()
+        clear_smooth_cache()
+        clear_noise_cache()
+        
+        import gc
+        gc.collect()
+        
+        event.accept()
+
+    def resizeEvent(self, event):
+        """Handle resize for smart scaling."""
+        super().resizeEvent(event)
+        # Could add additional responsive behavior here if needed
+
+
+def do_set_key():
+    """Simple set key function."""
+    if rt.selection.count == 0:
+        return "Select objects first"
+    
+    ct = rt.currentTime
+    count = 0
+    
+    with pymxs.animate(True):
+        for obj in rt.selection:
+            for prop in ["position", "rotation", "scale"]:
+                try:
+                    if prop == "position":
+                        obj.position = obj.position
+                    elif prop == "rotation":
+                        obj.rotation = obj.rotation
+                    elif prop == "scale":
+                        obj.scale = obj.scale
+                    count += 1
+                except:
+                    pass
+    
+    rt.redrawViews()
+    return f"Set {count} keys"
+
 
 def launch():
     main_window = qtmax.GetQMaxMainWindow()
     existing = main_window.findChild(QtWidgets.QDockWidget, "AnimmixDockWidget")
-    if existing: existing.close(); existing.deleteLater()
+    if existing:
+        existing.close()
+        existing.deleteLater()
+    
     widget = AnimmixDockWidget(main_window)
     main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, widget)
-    widget.setFloating(True); widget.show()
+    widget.setFloating(True)
+    widget.resize(280, 700)
+    widget.show()
+
 
 launch()
